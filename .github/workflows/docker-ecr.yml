@@ -36,4 +36,4 @@ jobs:
       # 5. Docker 이미지 푸시
       - name: Push to Amazon ECR
         run: |
-          docker push ${{ secrets.AWS_ECR_URI }}/flask-app:latest
+          docker push ${{ secrets.AWS_ECR_URI }}
