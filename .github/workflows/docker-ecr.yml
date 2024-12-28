@@ -31,9 +31,9 @@ jobs:
       # 4. 태그 지정
       - name: Tag Docker image
         run: |
-          docker tag flask-app:latest <AWS_ECR_URI>/flask-app:latest
+          docker tag flask-app:latest ${{ secrets.AWS_ECR_URI }}/flask-app:latest
 
       # 5. Docker 이미지 푸시
       - name: Push to Amazon ECR
         run: |
-          docker push <AWS_ECR_URI>/flask-app:latest
+          docker push ${{ secrets.AWS_ECR_URI }}/flask-app:latest
