@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import os
 import boto3
+from boto3.dynamodb.conditions import Key
 import requests
 
 load_dotenv()
@@ -34,12 +35,15 @@ def store_data():
     html_source = fetch_html(data['url'])
     if html_source:
         parsed_html_souce = html_parser(html_source)
-        current_datatime = datetime.now().isoformat()
+        # 한국 시간대 (UTC+9)
+        KST = timezone(timedelta(hours=9))
+        # 현재 시간 (한국 시간 기준)
+        current_datetime = datetime.now(KST).strftime('%Y%m%d%H%M%S')
         # DynamoDB에 데이터 저장
         table.put_item(Item={
-            'url_timestamp': data['url']+'_'+current_datatime,
+            'url': data['url'],
             'content': parsed_html_souce,
-            'timestamp': current_datatime
+            'timestamp': current_datetime
         })
     return jsonify({"message": "Data stored successfully"}), 201
 
@@ -80,14 +84,29 @@ def html_parser(html_content):
     else:
         print("No <tbody> tag found")
 
-@app.route('/data/<string:url>', methods=['GET'])
-def get_data(url):
+@app.route('/data', methods=['GET'])
+def get_data():
     try:
-        response = table.get_item(Key={'url': url})
-        item = response.get('Item')
-        if not item:
-            return jsonify({"error": "Data not found"}), 404
-        return jsonify(item), 200
+        # 쿼리 매개변수에서 url과 timestamp 범위 가져오기
+        url = request.args.get('url')
+        start_timestamp = request.args.get('start_timestamp')
+        end_timestamp = request.args.get('end_timestamp')
+
+        # 필수 파라미터 검증
+        if not url or not start_timestamp or not end_timestamp:
+            return jsonify({"error": "Missing required parameters"}), 400
+
+        # DynamoDB 조건 검색 (timestamp 범위 지정)
+        response = table.query(
+            KeyConditionExpression=Key('url').eq(url) & Key('timestamp').between(start_timestamp, end_timestamp)
+        )
+
+        # 결과 확인
+        items = response.get('Items')
+        if not items:
+            return jsonify({"error": "No data found in the given range"}), 404
+
+        return jsonify(items), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
